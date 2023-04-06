@@ -13,6 +13,10 @@ import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.BeansException;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 
 import javax.annotation.Resource;
 import java.beans.XMLDecoder;
@@ -31,7 +35,7 @@ import java.util.List;
  * @date 2023/2/23
  * @since 1.0.0
  */
-public class CustomLicenseManager extends LicenseManager{
+public class CustomLicenseManager extends LicenseManager implements ApplicationContextAware {
     private static Logger logger = LogManager.getLogger(CustomLicenseManager.class);
 
     //XML编码
@@ -41,6 +45,8 @@ public class CustomLicenseManager extends LicenseManager{
 
     //盐值
     private static final String salt = "jxcc-license";
+
+    private static ApplicationContext ctx;
     
 
     public CustomLicenseManager() {
@@ -160,16 +166,16 @@ public class CustomLicenseManager extends LicenseManager{
     @Override
     protected synchronized void validate(final LicenseContent content)
             throws LicenseContentException {
-        //1. 首先调用父类的validate方法
-        super.validate(content);
-
-        //2. 然后校验自定义的License参数
-        //License中可被允许的参数信息
-        LicenseCheckModel expectedCheckModel = (LicenseCheckModel) content.getExtra();
-        //当前服务器真实的参数信息
-        LicenseCheckModel serverCheckModel = getServerInfos();
-
         try {
+            //1. 首先调用父类的validate方法
+            super.validate(content);
+
+            //2. 然后校验自定义的License参数
+            //License中可被允许的参数信息
+            LicenseCheckModel expectedCheckModel = (LicenseCheckModel) content.getExtra();
+            //当前服务器真实的参数信息
+            LicenseCheckModel serverCheckModel = getServerInfos();
+
             if (expectedCheckModel != null && serverCheckModel != null) {
                 //校验盐值
                 if (!checkSalt(content)) {
@@ -177,12 +183,12 @@ public class CustomLicenseManager extends LicenseManager{
                 }
 
                 //校验IP地址
-                if (!checkIpAddress(expectedCheckModel.getIpAddress(), serverCheckModel.getIpAddress())) {
+                if (expectedCheckModel.getIpCheck() && !checkIpAddress(expectedCheckModel.getIpAddress(), serverCheckModel.getIpAddress())) {
                     throw new LicenseContentException("当前服务器的IP没在授权范围内");
                 }
 
                 //校验Mac地址
-                if (!checkIpAddress(expectedCheckModel.getMacAddress(), serverCheckModel.getMacAddress())) {
+                if (expectedCheckModel.getMacCheck() && !checkIpAddress(expectedCheckModel.getMacAddress(), serverCheckModel.getMacAddress())) {
                     throw new LicenseContentException("当前服务器的Mac地址没在授权范围内");
                 }
 
@@ -199,8 +205,28 @@ public class CustomLicenseManager extends LicenseManager{
                 throw new LicenseContentException("不能获取服务器硬件信息");
             }
         } catch (LicenseContentException e) {
-            // TODO: 2023/4/5  
+            // TODO: 2023/4/5
+            logger.warn("license校验失败: {}",e.getMessage());
+            Thread shutdownThread = new Thread(this::shutdownApp);
+            shutdownThread.setContextClassLoader(this.getClass().getClassLoader());
+            shutdownThread.start();
+            throw new LicenseContentException(e.getLocalizedMessage());
         }
+    }
+
+    /**
+     * 关闭应用
+     * @author dingyb
+     * @date 2023/2/25 14:19
+     * @since 1.0.0
+     * @return java.lang.Object
+     */
+    private void shutdownApp() {
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException ignored) {}
+
+        SpringApplication.exit(ctx, () -> 0);
     }
 
 
@@ -342,4 +368,8 @@ public class CustomLicenseManager extends LicenseManager{
         return false;
     }
 
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        ctx = applicationContext;
+    }
 }

@@ -36,7 +36,11 @@ public class LicenseVerify {
             licenseManager.uninstall();
 
             result = licenseManager.install(new File(param.getLicensePath()));
-            logger.info(MessageFormat.format("证书安装成功，证书有效期：{0} - {1}",format.format(result.getNotBefore()),format.format(result.getNotAfter())));
+            if (null != result.getNotAfter()) {
+                logger.info(MessageFormat.format("证书安装成功，证书有效期：{0} - {1}", format.format(result.getNotBefore()), format.format(result.getNotAfter())));
+            } else {
+                logger.info(MessageFormat.format("证书安装成功，证书有效期：{0} - unlimited", format.format(result.getNotBefore())));
+            }
         }catch (Exception e){
             logger.error("证书安装失败！",e);
         }

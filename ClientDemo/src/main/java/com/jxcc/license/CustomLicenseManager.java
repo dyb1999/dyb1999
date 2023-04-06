@@ -165,16 +165,16 @@ public class CustomLicenseManager extends LicenseManager implements ApplicationC
     @Override
     protected synchronized void validate(final LicenseContent content)
             throws LicenseContentException {
-        //1. 首先调用父类的validate方法
-        super.validate(content);
-
-        //2. 然后校验自定义的License参数
-        //License中可被允许的参数信息
-        LicenseCheckModel expectedCheckModel = (LicenseCheckModel) content.getExtra();
-        //当前服务器真实的参数信息
-        LicenseCheckModel serverCheckModel = getServerInfos();
-
         try {
+            //1. 首先调用父类的validate方法
+            super.validate(content);
+
+            //2. 然后校验自定义的License参数
+            //License中可被允许的参数信息
+            LicenseCheckModel expectedCheckModel = (LicenseCheckModel) content.getExtra();
+            //当前服务器真实的参数信息
+            LicenseCheckModel serverCheckModel = getServerInfos();
+
             if (expectedCheckModel != null && serverCheckModel != null) {
                 //校验盐值
                 if (!checkSalt(content)) {
@@ -182,12 +182,12 @@ public class CustomLicenseManager extends LicenseManager implements ApplicationC
                 }
 
                 //校验IP地址
-                if (!checkIpAddress(expectedCheckModel.getIpAddress(), serverCheckModel.getIpAddress())) {
+                if (expectedCheckModel.getIpCheck() && !checkIpAddress(expectedCheckModel.getIpAddress(), serverCheckModel.getIpAddress())) {
                     throw new LicenseContentException("当前服务器的IP没在授权范围内");
                 }
 
                 //校验Mac地址
-                if (!checkIpAddress(expectedCheckModel.getMacAddress(), serverCheckModel.getMacAddress())) {
+                if (expectedCheckModel.getMacCheck() && !checkIpAddress(expectedCheckModel.getMacAddress(), serverCheckModel.getMacAddress())) {
                     throw new LicenseContentException("当前服务器的Mac地址没在授权范围内");
                 }
 
@@ -203,8 +203,8 @@ public class CustomLicenseManager extends LicenseManager implements ApplicationC
             } else {
                 throw new LicenseContentException("不能获取服务器硬件信息");
             }
-        } catch (LicenseContentException e) {
-            logger.warn("license校验失败: {}",e.getMessage());
+        } catch (LicenseContentException | NullPointerException e) {
+            logger.warn("license校验失败: {} ",e.getMessage());
             Thread shutdownThread = new Thread(this::shutdownApp);
             shutdownThread.setContextClassLoader(this.getClass().getClassLoader());
             shutdownThread.start();

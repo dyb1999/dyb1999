@@ -13,6 +13,17 @@ import java.util.List;
 public class LicenseCheckModel implements Serializable{
 
     private static final long serialVersionUID = 8600137500316662317L;
+
+    /**
+     * 是否开启IP校验
+     */
+    private Boolean ipCheck;
+
+    /**
+     * 是否开启MAC地址校验
+     */
+    private Boolean macCheck;
+
     /**
      * 可被允许的IP地址
      */
@@ -45,6 +56,22 @@ public class LicenseCheckModel implements Serializable{
      * 综合校验
      */
     private String saltVerify;
+
+    public Boolean getIpCheck() {
+        return ipCheck;
+    }
+
+    public void setIpCheck(Boolean ipCheck) {
+        this.ipCheck = ipCheck;
+    }
+
+    public Boolean getMacCheck() {
+        return macCheck;
+    }
+
+    public void setMacCheck(Boolean macCheck) {
+        this.macCheck = macCheck;
+    }
 
     public List<String> getIpAddress() {
         return ipAddress;
