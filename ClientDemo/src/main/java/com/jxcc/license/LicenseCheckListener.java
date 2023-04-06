@@ -4,9 +4,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationListener;
-import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
@@ -52,11 +50,9 @@ public class LicenseCheckListener {
     @Value("${license.publicKeysStorePath}")
     private String publicKeysStorePath;
 
-    @PostConstruct
-    public void init() {
-//        //root application context 没有parent
-//        ApplicationContext context = event.getApplicationContext().getParent();
-//        if(context == null){
+//    @PostConstruct
+    @Scheduled(fixedRate = 20000L)
+    public void validateLicense() {
             if(StringUtils.isNotBlank(licensePath)){
                 logger.info("++++++++ 开始安装证书 ++++++++");
 

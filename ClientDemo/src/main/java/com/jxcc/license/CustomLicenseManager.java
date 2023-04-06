@@ -8,15 +8,23 @@ import de.schlichtherle.license.LicenseNotary;
 import de.schlichtherle.license.LicenseParam;
 import de.schlichtherle.license.NoLicenseInstalledException;
 import de.schlichtherle.xml.GenericCertificate;
+import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.BeansException;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
 
 import java.beans.XMLDecoder;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -27,7 +35,8 @@ import java.util.List;
  * @date 2023/2/23
  * @since 1.0.0
  */
-public class CustomLicenseManager extends LicenseManager{
+@Component
+public class CustomLicenseManager extends LicenseManager implements ApplicationContextAware {
     private static Logger logger = LogManager.getLogger(CustomLicenseManager.class);
 
     //XML编码
@@ -37,8 +46,10 @@ public class CustomLicenseManager extends LicenseManager{
     //盐值
     private static final String salt = "jxcc-license";
 
-    public CustomLicenseManager() {
+    private static ApplicationContext ctx;
 
+
+    public CustomLicenseManager() {
     }
 
     public CustomLicenseManager(LicenseParam param) {
@@ -150,6 +161,7 @@ public class CustomLicenseManager extends LicenseManager{
      * @since 1.0.0
      * @param content LicenseContent
      */
+    @SneakyThrows
     @Override
     protected synchronized void validate(final LicenseContent content)
             throws LicenseContentException {
@@ -162,35 +174,60 @@ public class CustomLicenseManager extends LicenseManager{
         //当前服务器真实的参数信息
         LicenseCheckModel serverCheckModel = getServerInfos();
 
-        if(expectedCheckModel != null && serverCheckModel != null){
-            //校验IP地址
-            if(!checkIpAddress(expectedCheckModel.getIpAddress(),serverCheckModel.getIpAddress())){
-                throw new LicenseContentException("当前服务器的IP没在授权范围内");
-            }
+        try {
+            if (expectedCheckModel != null && serverCheckModel != null) {
+                //校验盐值
+                if (!checkSalt(content)) {
+                    throw new LicenseContentException("当前证书内容不合法,请确认证书合法性");
+                }
 
-            //校验Mac地址
-            if(!checkIpAddress(expectedCheckModel.getMacAddress(),serverCheckModel.getMacAddress())){
-                throw new LicenseContentException("当前服务器的Mac地址没在授权范围内");
-            }
+                //校验IP地址
+                if (!checkIpAddress(expectedCheckModel.getIpAddress(), serverCheckModel.getIpAddress())) {
+                    throw new LicenseContentException("当前服务器的IP没在授权范围内");
+                }
 
-            //校验主板序列号
-            if(!checkSerial(expectedCheckModel.getMainBoardSerial(),serverCheckModel.getMainBoardSerial())){
-                throw new LicenseContentException("当前服务器的主板序列号没在授权范围内");
-            }
+                //校验Mac地址
+                if (!checkIpAddress(expectedCheckModel.getMacAddress(), serverCheckModel.getMacAddress())) {
+                    throw new LicenseContentException("当前服务器的Mac地址没在授权范围内");
+                }
 
-            //校验CPU序列号
-            if(!checkSerial(expectedCheckModel.getCpuSerial(),serverCheckModel.getCpuSerial())){
-                throw new LicenseContentException("当前服务器的CPU序列号没在授权范围内");
-            }
+                //校验主板序列号
+                if (!checkSerial(expectedCheckModel.getMainBoardSerial(), serverCheckModel.getMainBoardSerial())) {
+                    throw new LicenseContentException("当前服务器的主板序列号没在授权范围内");
+                }
 
-            //校验盐值
-            if (!checkSalt(expectedCheckModel, serverCheckModel)) {
-                throw new LicenseContentException("当前服务器的综合盐值不在范围内,请确认证书合法性");
+                //校验CPU序列号
+                if (!checkSerial(expectedCheckModel.getCpuSerial(), serverCheckModel.getCpuSerial())) {
+                    throw new LicenseContentException("当前服务器的CPU序列号没在授权范围内");
+                }
+            } else {
+                throw new LicenseContentException("不能获取服务器硬件信息");
             }
-        }else{
-            throw new LicenseContentException("不能获取服务器硬件信息");
+        } catch (LicenseContentException e) {
+            logger.warn("license校验失败: {}",e.getMessage());
+            Thread shutdownThread = new Thread(this::shutdownApp);
+            shutdownThread.setContextClassLoader(this.getClass().getClassLoader());
+            shutdownThread.start();
+            throw new LicenseContentException(e.getLocalizedMessage());
         }
     }
+
+
+    /**
+     * 关闭应用
+     * @author dingyb
+     * @date 2023/2/25 14:19
+     * @since 1.0.0
+     * @return java.lang.Object
+     */
+    private void shutdownApp() {
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException ignored) {}
+
+        SpringApplication.exit(ctx, () -> 0);
+    }
+
 
 
     /**
@@ -302,31 +339,38 @@ public class CustomLicenseManager extends LicenseManager{
      * 校验盐值
      * @author dingyb
      * @date 2023/2/24 14:38
-     * @since 1.0.0
+     * @since 1.0.1
      * @return boolean
      */
-    private boolean checkSalt(LicenseCheckModel expectedCheckModel,LicenseCheckModel serverCheckModel){
-        if(StringUtils.isNotBlank(expectedCheckModel.getCpuSerial()) && StringUtils.isNotBlank(expectedCheckModel.getMainBoardSerial())){
-            if (StringUtils.isNotBlank(serverCheckModel.getCpuSerial()) && StringUtils.isNotBlank(serverCheckModel.getMainBoardSerial())) {
-                try {
-                    //获取当前服务器信息的综合盐值
-                    String[] saltArray = new String[3];
-                    saltArray[0] = expectedCheckModel.getCpuSerial();
-                    saltArray[1] = expectedCheckModel.getMainBoardSerial();
-                    saltArray[2] = salt;
-                    String res = MD5Util.getMD5(saltArray);
-                    if (expectedCheckModel.getSaltVerify() != null && res.equals(expectedCheckModel.getSaltVerify())) {
-                        return true;
-                    }
-                } catch (NoSuchAlgorithmException e) {
-                    e.printStackTrace();
-                }
-            }
+    private boolean checkSalt(LicenseContent content) throws NoSuchAlgorithmException {
+        //获取当前服务器信息的综合盐值
+        ArrayList<String> list = new ArrayList<>();
+        if (null != content.getNotBefore()) {
+            list.add(String.valueOf(content.getNotBefore()));
+        }
+        if (null != content.getNotAfter()) {
+            list.add(String.valueOf(content.getNotAfter()));
+        }
+        LicenseCheckModel checkModel = (LicenseCheckModel) content.getExtra();
+        if (null != checkModel.getCpuSerial()) {
+            list.add(checkModel.getCpuSerial());
+        }
+        if (null != checkModel.getMainBoardSerial()) {
+            list.add(checkModel.getMainBoardSerial());
+        }
+        list.add(salt);
 
-            return false;
-        }else{
+        String[] saltArray = list.toArray(new String[list.size()]);
+        String res = MD5Util.getMD5(saltArray);
+        String saltVerify = checkModel.getSaltVerify();
+        if (StringUtils.isNotBlank(saltVerify) && res.equals(saltVerify)) {
             return true;
         }
+        return false;
     }
 
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        ctx = applicationContext;
+    }
 }
