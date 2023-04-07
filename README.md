@@ -35,18 +35,18 @@
 	"privateAlias": "privateKey",
 	"keyPass": "private_password1234",
 	"storePass": "public_password1234",
-    "licensePath": "C:/Users/dingyb/Desktop/license_test/license.lic",
-	"privateKeysStorePath": "C:/Users/dingyb/Desktop/license_demo/privateKeys.keystore",
+    	"licensePath": "license_test/license.lic",
+	"privateKeysStorePath": "/Desktop/license_demo/privateKeys.keystore",
 	"issuedTime": "2023-02-10 01:30:01",
 	"expiryTime": "2023-04-24 11:10:19",
 	"consumerType": "User",
 	"consumerAmount": 1,
 	"description": "这是证书描述信息",
 	"licenseCheckModel": {
-		"ipAddress": [ "10.99.11.135"],
-		"macAddress": ["2C-16-DB-A4-B4-28"],
-		"cpuSerial": "178BFBFF00A50F00",
-		"mainBoardSerial": "PF3BEBH0",
+		"ipAddress": [ ""],
+		"macAddress": [""],
+		"cpuSerial": "",
+		"mainBoardSerial": "",
 		"saltVerify": "1198895aad7d1b31cb2de760d831958b"
 	}
 }
@@ -54,5 +54,5 @@
 
 #### ClientDemo项目： ####
 
-项目启动时安装证书，通过`com/jxcc/license/LicenseCheckListener.java`类实现。用户登录时校验证书的可用性，通过`com/jxcc/license/LicenseCheckInterceptor.java`类实现。
+项目启动时安装证书，通过`com/license/LicenseCheckListener.java`类实现。用户登录时校验证书的可用性，通过`com/license/LicenseCheckInterceptor.java`类实现。
 
